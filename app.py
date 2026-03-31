@@ -6,6 +6,13 @@ from ui.dashboard import render_dashboard                       # main analysis 
 
 st.set_page_config(**PAGE_CONFIG)                               # set browser tab title and layout
 
+st.markdown("""
+    <style>
+        [data-testid="stToolbar"] {visibility: hidden !important;}
+        [data-testid="stDecoration"] {display: none !important;}
+    </style>
+""", unsafe_allow_html=True)
+
 # hide anchor links on all headings
 st.markdown("""
     <style>
