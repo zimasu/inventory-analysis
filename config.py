@@ -1,20 +1,27 @@
-PAGE_CONFIG = {
+import os
+from pathlib import Path
+from typing import Dict, Tuple, List, Any
+
+# ─────────────────────────────────────────────────────
+# Core Engine Configurations
+# ─────────────────────────────────────────────────────
+PAGE_CONFIG: Dict[str, Any] = {
     "page_title": "Inventory ABC/XYZ Analysis",
     "page_icon": "📦",
     "layout": "wide",
 }
 
-ABC_DEFAULTS = {
+ABC_DEFAULTS: Dict[str, float] = {
     "threshold_a": 0.70,
     "threshold_b": 0.90,
 }
 
-XYZ_DEFAULTS = {
+XYZ_DEFAULTS: Dict[str, float] = {
     "threshold_x": 0.30,
     "threshold_y": 0.60,
 }
 
-SLIDER_BOUNDS = {
+SLIDER_BOUNDS: Dict[str, Tuple[Any, Any]] = {
     "abc_a": (50, 80),
     "abc_b": (81, 95),
     "xyz_x": (0.10, 0.50),
@@ -22,30 +29,39 @@ SLIDER_BOUNDS = {
 }
 
 # ─────────────────────────────────────────────────────
-# PrestaShop API
+# PrestaShop Secure API Client Boundaries
 # ─────────────────────────────────────────────────────
-PRESTASHOP_BASE_URL = "http://localhost:8080/api"
-PRESTASHOP_API_KEY = "99YUV7ASUZTY75YCCMAUEAXR966XX5PG"
+# Environment variables pull credentials securely, preventing hardcoded leaks.
+PRESTASHOP_BASE_URL: str = os.getenv("PRESTASHOP_BASE_URL", "http://localhost:8080/api")
+PRESTASHOP_API_KEY: str = os.getenv("PRESTASHOP_API_KEY", "PLACEHOLDER_TOKEN_SECURE_MIGRATION")
 
 # ─────────────────────────────────────────────────────
-# File paths
+# Deterministic File Paths via Pathlib
 # ─────────────────────────────────────────────────────
-INVENTORY_FILE = "data/inventory.csv"
-SALES_FILE = "data/sales_history.csv"
-ABC_RESULTS_FILE = "results/abc_results.csv"
-XYZ_RESULTS_FILE = "results/xyz_results.csv"
-ABCXYZ_RESULTS_FILE = "results/abcxyz_results.csv"
+BASE_DIR: Path = Path(__file__).resolve().parent
+DATA_DIR: Path = BASE_DIR / "data"
+RESULTS_DIR: Path = BASE_DIR / "results"
+
+# Ensure runtime directories exist natively on execution initialization
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+INVENTORY_FILE: str = str(DATA_DIR / "inventory.csv")
+SALES_FILE: str = str(DATA_DIR / "sales_history.csv")
+ABC_RESULTS_FILE: str = str(RESULTS_DIR / "abc_results.csv")
+XYZ_RESULTS_FILE: str = str(RESULTS_DIR / "xyz_results.csv")
+ABCXYZ_RESULTS_FILE: str = str(RESULTS_DIR / "abcxyz_results.csv")
 
 # ─────────────────────────────────────────────────────
-# Display
+# UI Metric Displays
 # ─────────────────────────────────────────────────────
-CURRENCY_SYMBOL = "Rp"
-STOCKOUT_THRESHOLD_DAYS = 30
-EXPORT_FILENAME = "abcxyz_results.csv"
+CURRENCY_SYMBOL: str = "Rp"
+STOCKOUT_THRESHOLD_DAYS: int = 30
+EXPORT_FILENAME: str = "abcxyz_results.csv"
 
-ABC_COLORS = {"A": "#2ecc71", "B": "#f39c12", "C": "#e74c3c"}
+ABC_COLORS: Dict[str, str] = {"A": "#2ecc71", "B": "#f39c12", "C": "#e74c3c"}
 
-ABCXYZ_INTERPRETATIONS = {
+ABCXYZ_INTERPRETATIONS: Dict[str, str] = {
     "AX": "⭐ High value, stable demand — prioritize stock",
     "AY": "⭐ High value, variable demand — monitor closely",
     "AZ": "⚠️ High value, irregular demand — safety stock needed",
@@ -57,7 +73,7 @@ ABCXYZ_INTERPRETATIONS = {
     "CZ": "❌ Low value, irregular demand — consider discontinuing",
 }
 
-TABLE_COLUMNS = [
+TABLE_COLUMNS: List[str] = [
     "id",
     "name",
     "reference",
@@ -69,5 +85,5 @@ TABLE_COLUMNS = [
     "interpretation",
 ]
 
-PLOTLY_CONFIG = {"staticPlot": True}
-PLOTLY_USE_CONTAINER_WIDTH = True
+PLOTLY_CONFIG: Dict[str, bool] = {"staticPlot": True}
+PLOTLY_USE_CONTAINER_WIDTH: bool = True
