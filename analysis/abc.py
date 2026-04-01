@@ -2,14 +2,18 @@
 # ─────────────────────────────────────────────────────
 # ABC Analysis — Revenue Contribution Classification
 # ─────────────────────────────────────────────────────
-# What it does: ranks items by cumulative revenue share
-# Input:  DataFrame with column [revenue]
-# Output: same DataFrame + columns:
-#           [cumulative_revenue, cumulative_revenue_pct,
-#            revenue_pct, abc_class]
-# Formula: cumulative % of sorted revenue → threshold buckets
+# Input:  inventory.csv
+#           id, reference, name, price,
+#           wholesale_price, quantity, sales_volume
+#
+# Output: abc_results.csv
+#           all input columns +
+#           revenue, revenue_pct,
+#           cumulative_revenue, cumulative_revenue_pct,
+#           abc_class
 # ─────────────────────────────────────────────────────
 import pandas as pd
+from config import INVENTORY_FILE, ABC_RESULTS_FILE
 
 
 def calculate_abc(
@@ -22,25 +26,28 @@ def calculate_abc(
 
     Parameters
     ----------
-    df          : DataFrame — must have 'revenue' column
-    threshold_a : top share of revenue = Class A  (default 70%)
-    threshold_b : top share of revenue = Class B  (default 90%)
+    df          : DataFrame from inventory.csv
+    threshold_a : cumulative revenue share ceiling for Class A (default 70%)
+    threshold_b : cumulative revenue share ceiling for Class B (default 90%)
+                  anything above → Class C
 
     Returns
     -------
-    DataFrame with new columns:
+    DataFrame sorted by revenue descending, with new columns:
+        revenue                 — price × sales_volume
+        revenue_pct             — this item's % of total revenue
         cumulative_revenue      — running total of revenue
         cumulative_revenue_pct  — running % of total revenue
-        revenue_pct             — this item's % of total revenue
         abc_class               — A, B, or C
     """
     df = df.copy()
+    df["revenue"] = (df["price"] * df["sales_volume"]).round(2)
     df = df.sort_values("revenue", ascending=False).reset_index(drop=True)
 
     total = df["revenue"].sum()
-    df["cumulative_revenue"]     = df["revenue"].cumsum()
+    df["revenue_pct"] = (df["revenue"] / total * 100).round(2)
+    df["cumulative_revenue"] = df["revenue"].cumsum().round(2)
     df["cumulative_revenue_pct"] = (df["cumulative_revenue"] / total * 100).round(2)
-    df["revenue_pct"]            = (df["revenue"] / total * 100).round(2)
 
     df["abc_class"] = pd.cut(
         df["cumulative_revenue_pct"],
@@ -50,3 +57,11 @@ def calculate_abc(
     )
 
     return df
+
+
+if __name__ == "__main__":
+    df = pd.read_csv(INVENTORY_FILE)
+    result = calculate_abc(df)
+    result.to_csv(ABC_RESULTS_FILE, index=False)
+    print(f"Saved {len(result)} rows to {ABC_RESULTS_FILE}")
+    print(result["abc_class"].value_counts().sort_index().to_string())

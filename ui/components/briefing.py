@@ -1,295 +1,209 @@
-# ui/components/briefing.py
-# ─────────────────────────────────────────────────────────────────────────────
-# Inventory Briefing — hero section for the Overview tab.
-#
-# Three sections rendered top-to-bottom:
-#   1. Summary sentence  — one plain-English line on inventory health
-#   2. KPI grid          — rounded cards, laid out as a proper grid
-#   3. Notification feed — expandable panels per issue type
-#
-# KPI grid layout rule:
-#   n cards  →  grid shape
-#   1        →  1 × 1
-#   2        →  1 × 2
-#   3        →  1 × 3
-#   4        →  2 × 2  ← the sweet spot for a dashboard feel
-#   5        →  2 × 3  (last cell empty)
-#   6        →  2 × 3
-#   7–9      →  3 × 3
-#   10+      →  rows of 3
-#
-# WHY ONE BIG st.markdown() FOR THE GRID?
-#   st.columns() splits the Streamlit layout tree, but HTML cards rendered
-#   inside those columns via st.markdown() can lose their widths depending
-#   on the Streamlit version and theme.  A single st.markdown() block that
-#   renders the whole grid as an HTML table avoids that entirely — the browser
-#   handles the grid, not Streamlit.  No extra packages needed.
-# ─────────────────────────────────────────────────────────────────────────────
-
-import math
 import streamlit as st
-from config import STOCKOUT_THRESHOLD_DAYS, CURRENCY_SYMBOL
+from config import CURRENCY_SYMBOL, STOCKOUT_THRESHOLD_DAYS
+from ui.i18n import t
 
 
-# ── Class buckets ─────────────────────────────────────────────────────────────
-DEAD_WEIGHT_CLASSES = ["CZ", "CY"]   # slow-moving, unpredictable  → cash tied up
-GOLD_CLASSES        = ["AX", "AY"]   # fast-moving, predictable    → protect these
-RISKY_CLASSES       = ["AZ"]         # high-value, erratic demand  → safety stock
+def _language_toggle() -> str:
+    if "lang" not in st.session_state:
+        st.session_state.lang = "en"
 
-# Shared columns shown in every notification table
-BASE_COLS = ["item_code", "item_name", "category", "abcxyz_class", "interpretation"]
+    col1, col2, col3, _ = st.columns([1, 1, 1, 6])
+    with col1:
+        if st.button("🇬🇧 EN"):
+            st.session_state.lang = "en"
+    with col2:
+        if st.button("🇮🇩 ID"):
+            st.session_state.lang = "id"
+    with col3:
+        if st.button("🇩🇪 DE"):
+            st.session_state.lang = "de"
 
-# How many columns per row given the total card count
-# 4 cards → 2 cols (= 2×2).  Everything else follows the same logic.
-_COLS_FOR_N = {1: 1, 2: 2, 3: 3, 4: 2, 5: 3, 6: 3, 7: 3, 8: 3, 9: 3}
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _classify(inventory):
-    """
-    Split inventory into the four groups we care about.
-    Doing this once here means no repeated filter calls elsewhere.
-    """
-    return {
-        "stockouts":   inventory[inventory["stockout_days_per_year"] > STOCKOUT_THRESHOLD_DAYS],
-        "dead_weight": inventory[inventory["abcxyz_class"].isin(DEAD_WEIGHT_CLASSES)],
-        "gold":        inventory[inventory["abcxyz_class"].isin(GOLD_CLASSES)],
-        "risky":       inventory[inventory["abcxyz_class"].isin(RISKY_CLASSES)],
-    }
+    return st.session_state.lang
 
 
-def _summary_sentence(n_stockouts, n_dead, n_risky, n_gold, dead_weight_cash) -> str:
-    """
-    One plain-English sentence describing inventory health.
-    Accepts pre-computed counts/values — no DataFrames — so it's easy to test.
-    Priority: urgent → caution → all clear.
-    """
-    if n_stockouts > 0 and n_dead > 0:
-        return (
-            f"⚠️ Your inventory needs attention — "
-            f"**{n_stockouts} items** cannot be sold right now and "
-            f"**{CURRENCY_SYMBOL}{dead_weight_cash:,.0f}** is sitting in slow-moving stock."
+def _headline(inventory, lang) -> str:
+    low_stock = inventory[inventory["avg_days_in_stock"] < STOCKOUT_THRESHOLD_DAYS]
+    dead = inventory[inventory["abcxyz_class"].isin(["CZ", "CY"])]
+    risky = inventory[inventory["abcxyz_class"] == "AZ"]
+    gold = inventory[inventory["abcxyz_class"].isin(["AX", "AY"])]
+
+    if len(low_stock) > 0:
+        return t("headline_low_stock", lang, n=len(low_stock))
+    if len(dead) > 0:
+        cash = (dead["wholesale_price"] * dead["quantity"]).sum()
+        return t("headline_dead", lang, currency=CURRENCY_SYMBOL, cash=f"{cash:,.0f}")
+    if len(risky) > 0:
+        return t("headline_risky", lang, n=len(risky))
+    if len(gold) > 0:
+        return t("headline_gold", lang, n=len(gold))
+    return t("headline_ok", lang)
+
+
+def _kpi_cards(inventory, lang):
+    low_stock = inventory[inventory["avg_days_in_stock"] < STOCKOUT_THRESHOLD_DAYS]
+    total_revenue = inventory["revenue"].sum()
+    top_items = inventory[inventory["abc_class"] == "A"]
+
+    cards = [
+        ("📦", t("kpi_total", lang), str(len(inventory)), "rgba(52,152,219,0.12)"),
+        (
+            "💰",
+            t("kpi_revenue", lang),
+            f"{CURRENCY_SYMBOL} {total_revenue:,.0f}",
+            "rgba(46,204,113,0.12)",
+        ),
+        ("⭐", t("kpi_top", lang), str(len(top_items)), "rgba(241,196,15,0.12)"),
+        ("⚠️", t("kpi_lowstock", lang), str(len(low_stock)), "rgba(231,76,60,0.12)"),
+    ]
+
+    cols = st.columns(4)
+    for col, (emoji, label, value, bg) in zip(cols, cards):
+        col.markdown(
+            f"""
+            <div style="
+                background:{bg};
+                border-radius:14px;
+                padding:1.2rem 1rem;
+                text-align:center;
+            ">
+                <div style="font-size:1.6rem">{emoji}</div>
+                <div style="font-size:1.5rem;font-weight:800;margin:0.3rem 0;line-height:1.2">{value}</div>
+                <div style="font-size:0.8rem;color:grey">{label}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-    if n_stockouts > 0:
-        return (
-            f"⚠️ Your inventory needs attention — "
-            f"**{n_stockouts} items** are out of stock and losing you sales today."
-        )
-    if n_dead > 0:
-        return (
-            f"🟡 No stockouts right now, but "
-            f"**{CURRENCY_SYMBOL}{dead_weight_cash:,.0f}** is tied up in slow-moving items — "
-            f"consider clearing them."
-        )
-    if n_risky > 0:
-        return (
-            f"🟡 Inventory is mostly healthy but "
-            f"**{n_risky} high-value items** have unpredictable demand — keep a safety stock."
-        )
-    if n_gold > 0:
-        return (
-            f"✅ Your inventory looks healthy — "
-            f"**{n_gold} top performers** are well stocked and no urgent issues were found."
-        )
-    return "✅ Inventory looks healthy — no urgent issues found."
+    st.markdown("<div style='margin-bottom:1rem'></div>", unsafe_allow_html=True)
 
-
-def _kpi_grid(cards: list):
-    """
-    Render KPI cards as a proper HTML grid inside a single st.markdown() call.
-
-    Why not st.columns() + individual st.markdown() per card?
-      When you put an HTML block inside a Streamlit column, the column width
-      isn't always passed into the HTML context correctly — cards can collapse
-      to full-width stacks.  By rendering the ENTIRE grid as one HTML table,
-      the browser owns the layout and the cards always line up correctly.
-
-    Grid shape (n_cols is looked up from _COLS_FOR_N):
-      4 cards → 2 cols → 2 × 2
-      6 cards → 3 cols → 2 × 3
-      9 cards → 3 cols → 3 × 3
-      etc.
-
-    Each card:
-      ┌─────────────────────────┐
-      │                         │
-      │   Rp 879,359,500        │  ← big bold number, centred
-      │   Total Revenue         │  ← small grey label below
-      │                         │
-      └─────────────────────────┘
-
-    Args:
-        cards: list of (label, value) tuples in display order.
-    """
-    n      = len(cards)
-    n_cols = _COLS_FOR_N.get(n, 3)          # columns per row
-    n_rows = math.ceil(n / n_cols)          # rows needed
-
-    # Card cell style — same look as before but defined once here
-    cell_style = (
-        "background:rgba(128,128,128,0.08);"
-        "border:1px solid rgba(128,128,128,0.2);"
-        "border-radius:14px;"
-        "padding:1.4rem 1rem;"
-        "text-align:center;"
-        "width:{pct}%;"                     # filled in below per row
-    )
-
-    col_pct = 100 // n_cols                 # each column takes an equal share
-
-    # Build the HTML table row by row
-    rows_html = []
-    card_idx  = 0
-
-    for _ in range(n_rows):
-        row_cards = cards[card_idx : card_idx + n_cols]
-        cells     = []
-
-        for label, value in row_cards:
-            style = cell_style.format(pct=col_pct)
-            cells.append(
-                f"<td style='{style}'>"
-                f"  <div style='font-size:1.9rem;font-weight:700;line-height:1.2'>{value}</div>"
-                f"  <div style='font-size:0.82rem;color:grey;margin-top:0.4rem'>{label}</div>"
-                f"</td>"
-            )
-
-        rows_html.append(f"<tr>{''.join(cells)}</tr>")
-        card_idx += n_cols
-
-    table_html = (
-        "<table style='width:100%;border-collapse:separate;border-spacing:12px 12px;'>"
-        + "".join(rows_html)
-        + "</table>"
-    )
-
-    st.markdown(table_html, unsafe_allow_html=True)
-
-
-def _notification_table(df, extra_cols: list, rename_map: dict):
-    """Render a dataframe with the shared base columns plus section-specific extras."""
-    st.dataframe(
-        df[BASE_COLS + extra_cols].rename(columns=rename_map),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-
-# ── Public entry point ────────────────────────────────────────────────────────
 
 def render_briefing(inventory):
-    """
-    Main render function — call this from the Overview tab.
-    Flow: guard → classify → summary sentence → KPI grid → notification feed.
-    """
-
     if inventory.empty:
         st.warning("No inventory data available.")
         return
 
-    # ── Classify ──────────────────────────────────────────────────────────────
-    groups          = _classify(inventory)
-    stockouts       = groups["stockouts"]
-    dead_weight     = groups["dead_weight"]
-    gold            = groups["gold"]
-    risky           = groups["risky"]
-    dead_weight_cash = (dead_weight["unit_cost"] * dead_weight["units_in_stock"]).sum()
+    lang = _language_toggle()
 
-    # ── 1. Summary sentence ───────────────────────────────────────────────────
-    summary = _summary_sentence(
-        n_stockouts      = len(stockouts),
-        n_dead           = len(dead_weight),
-        n_risky          = len(risky),
-        n_gold           = len(gold),
-        dead_weight_cash = dead_weight_cash,
-    )
+    low_stock = inventory[inventory["avg_days_in_stock"] < STOCKOUT_THRESHOLD_DAYS]
+    dead = inventory[inventory["abcxyz_class"].isin(["CZ", "CY"])]
+    risky = inventory[inventory["abcxyz_class"] == "AZ"]
+    gold = inventory[inventory["abcxyz_class"].isin(["AX", "AY"])]
+
+    # ── 1. Headline ───────────────────────────────────────
     st.markdown(
         f"<div style='font-size:1.1rem;padding:0.75rem 1rem;"
         f"border-radius:0.5rem;background:rgba(128,128,128,0.1);"
-        f"margin-bottom:1rem'>{summary}</div>",
+        f"margin-bottom:1rem'>{_headline(inventory, lang)}</div>",
         unsafe_allow_html=True,
     )
 
-    # ── 2. KPI grid ───────────────────────────────────────────────────────────
-    # Add / remove / reorder tuples here — the grid reshapes automatically.
-    # 4 cards → 2×2.  Add 2 more and it becomes 2×3.  Add 5 more: 3×3.
-    kpi_cards = [
-        ("Total Items",    str(len(inventory))),
-        ("Total Revenue",  f"{CURRENCY_SYMBOL} {inventory['revenue'].sum():,.0f}"),
-        ("Avg Margin",     f"{inventory['margin_pct'].mean():.1f}%"),
-        ("Stockout Items", str(len(stockouts))),
-    ]
-    _kpi_grid(kpi_cards)
-
+    # ── 2. KPI cards ──────────────────────────────────────
+    _kpi_cards(inventory, lang)
     st.markdown("---")
-    st.markdown("#### What needs your attention today")
 
-    # ── 3. Notification feed ──────────────────────────────────────────────────
-    # Most urgent first.  Stockouts auto-expanded; rest collapsed.
+    # ── 3. Expandable panels ──────────────────────────────
+    st.markdown(t("attention", lang))
 
-    # 3a. Stockouts
-    if len(stockouts) > 0:
-        with st.expander(
-            f"🔴  {len(stockouts)} items out of stock — you are losing sales right now",
-            expanded=True,
-        ):
-            st.caption("Restock these first — they have run out too often this year.")
-            _notification_table(stockouts,
-                extra_cols = ["stockout_days_per_year"],
-                rename_map = {
-                    "item_code": "Code", "item_name": "Item", "category": "Category",
-                    "abcxyz_class": "Class", "interpretation": "Status",
-                    "stockout_days_per_year": "Stockout days / year",
-                })
+    if len(low_stock) > 0:
+        with st.expander(t("low_stock_exp", lang, n=len(low_stock)), expanded=True):
+            st.caption(t("low_stock_cap", lang))
+            st.dataframe(
+                low_stock[
+                    [
+                        "item_code",
+                        "item_name",
+                        "abcxyz_class",
+                        "quantity",
+                        "avg_days_in_stock",
+                    ]
+                ].rename(
+                    columns={
+                        "item_code": "Code",
+                        "item_name": "Item",
+                        "abcxyz_class": "Class",
+                        "quantity": "In Stock",
+                        "avg_days_in_stock": "Days Left",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
     else:
-        st.success("✅  No stockout items — all items are sufficiently stocked.")
+        st.success(t("no_low_stock", lang))
 
-    # 3b. Dead weight
-    if len(dead_weight) > 0:
+    if len(dead) > 0:
+        cash = (dead["wholesale_price"] * dead["quantity"]).sum()
         with st.expander(
-            f"🟡  {len(dead_weight)} items tying up your cash"
-            f" — {CURRENCY_SYMBOL} {dead_weight_cash:,.0f} sitting on the shelf",
+            t(
+                "dead_exp",
+                lang,
+                n=len(dead),
+                currency=CURRENCY_SYMBOL,
+                cash=f"{cash:,.0f}",
+            )
         ):
-            st.caption("These sell poorly and unpredictably. Consider discounting or discontinuing.")
-            _notification_table(dead_weight,
-                extra_cols = ["units_in_stock", "avg_days_in_stock"],
-                rename_map = {
-                    "item_code": "Code", "item_name": "Item", "category": "Category",
-                    "abcxyz_class": "Class", "interpretation": "Status",
-                    "units_in_stock": "Units in stock", "avg_days_in_stock": "Avg days in stock",
-                })
+            st.caption(t("dead_cap", lang))
+            st.dataframe(
+                dead[
+                    [
+                        "item_code",
+                        "item_name",
+                        "abcxyz_class",
+                        "quantity",
+                        "interpretation",
+                    ]
+                ].rename(
+                    columns={
+                        "item_code": "Code",
+                        "item_name": "Item",
+                        "abcxyz_class": "Class",
+                        "quantity": "In Stock",
+                        "interpretation": "Status",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
     else:
-        st.success("✅  No dead weight items found.")
+        st.success(t("no_dead", lang))
 
-    # 3c. Risky
     if len(risky) > 0:
-        with st.expander(
-            f"⚠️  {len(risky)} high-value items with unpredictable demand — keep a safety stock",
-        ):
-            st.caption("Valuable but hard to predict. Do not let these run out.")
-            _notification_table(risky,
-                extra_cols = ["units_in_stock", "stockout_days_per_year"],
-                rename_map = {
-                    "item_code": "Code", "item_name": "Item", "category": "Category",
-                    "abcxyz_class": "Class", "interpretation": "Status",
-                    "units_in_stock": "Units in stock", "stockout_days_per_year": "Stockout days / year",
-                })
+        with st.expander(t("risky_exp", lang, n=len(risky))):
+            st.caption(t("risky_cap", lang))
+            st.dataframe(
+                risky[
+                    ["item_code", "item_name", "abcxyz_class", "quantity", "cv"]
+                ].rename(
+                    columns={
+                        "item_code": "Code",
+                        "item_name": "Item",
+                        "abcxyz_class": "Class",
+                        "quantity": "In Stock",
+                        "cv": "Variability (CV)",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
     else:
-        st.success("✅  No risky items found.")
+        st.success(t("no_risky", lang))
 
-    # 3d. Gold
     if len(gold) > 0:
-        with st.expander(
-            f"✅  {len(gold)} top-performing items — keep these always in stock",
-        ):
-            st.caption("Your best sellers with stable demand. Never let these run out.")
-            _notification_table(gold,
-                extra_cols = ["units_in_stock", "revenue"],
-                rename_map = {
-                    "item_code": "Code", "item_name": "Item", "category": "Category",
-                    "abcxyz_class": "Class", "interpretation": "Status",
-                    "units_in_stock": "Units in stock", "revenue": "Revenue",
-                })
+        with st.expander(t("gold_exp", lang, n=len(gold))):
+            st.caption(t("gold_cap", lang))
+            st.dataframe(
+                gold[
+                    ["item_code", "item_name", "abcxyz_class", "revenue", "quantity"]
+                ].rename(
+                    columns={
+                        "item_code": "Code",
+                        "item_name": "Item",
+                        "abcxyz_class": "Class",
+                        "revenue": "Revenue",
+                        "quantity": "In Stock",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
     else:
-        st.success("✅  No top-performing items found.")
+        st.success(t("no_gold", lang))

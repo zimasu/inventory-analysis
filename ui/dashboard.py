@@ -1,41 +1,37 @@
-# dashboard.py
 import streamlit as st
-from utils.analysis_runner import load_and_classify_inventory
-from ui.components.briefing import render_briefing            # handles everything on Overview
-from ui.components.hero_2x2 import render_hero                # moved to Charts tab
-from ui.components.matrix_3x3 import render_matrix
-from ui.components.chart_section import render_charts
-from ui.components.deep_dive import render_deep_dive
-from ui.components.math_proof import render_math_proof
+from datetime import datetime
+from ui.components.briefing import render_briefing
+from ui.components.hero_2x2 import render_hero
 
 
-def render_dashboard(config: dict, uploaded_file):
+def render_dashboard(config: dict, inventory):
     st.title("📦 Inventory Analysis")
 
-    try:
-        inventory, warnings = load_and_classify_inventory(uploaded_file, config)
-        for warning in warnings:
-            st.warning(warning)
-    except ValueError as error:
-        st.error(f"❌ {error}")
-        st.stop()
-
-    overview, charts, matrix, deep_dive, how_it_works = st.tabs([
-        "Overview", "Charts", "Matrix", "Deep Dive", "How it Works",
-    ])
+    overview, about = st.tabs(["Overview", "📋 About this Report"])
 
     with overview:
-        render_briefing(inventory)        # summary + KPI cards + notification feed
+        render_hero(inventory)
+        render_briefing(inventory)
 
-    with charts:
-        render_hero(inventory)            # bubble chart lives here now
-        render_charts(inventory)
+    with about:
+        st.markdown("### How this report works")
+        st.markdown(
+            """
+            This dashboard analyses your inventory automatically every time it loads — 
+            no manual uploads needed.
 
-    with matrix:
-        render_matrix(inventory)
+            **ABC Analysis** ranks your products by revenue contribution:
+            - 🟢 **A items** — top 70% of revenue. Highest priority.
+            - 🟡 **B items** — next 20%. Monitor regularly.
+            - 🔴 **C items** — bottom 10%. Review for discontinuation.
 
-    with deep_dive:
-        render_deep_dive(inventory)
+            **XYZ Analysis** measures how predictable demand is:
+            - **X** — stable, easy to forecast
+            - **Y** — some variability, manageable
+            - **Z** — irregular, hard to predict
 
-    with how_it_works:
-        render_math_proof(inventory, config)
+            Combined, **ABC/XYZ** tells you both *what matters* and *how reliably it sells*.
+            """
+        )
+        st.divider()
+        st.caption(f"Data last refreshed: {datetime.now().strftime('%d %B %Y, %H:%M')}")

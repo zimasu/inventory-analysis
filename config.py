@@ -21,18 +21,29 @@ SLIDER_BOUNDS = {
     "xyz_y": (0.51, 0.80),
 }
 
+# ─────────────────────────────────────────────────────
+# PrestaShop API
+# ─────────────────────────────────────────────────────
+PRESTASHOP_BASE_URL = "http://localhost:8080/api"
+PRESTASHOP_API_KEY = "99YUV7ASUZTY75YCCMAUEAXR966XX5PG"
+
+# ─────────────────────────────────────────────────────
+# File paths
+# ─────────────────────────────────────────────────────
+INVENTORY_FILE = "data/inventory.csv"
+SALES_FILE = "data/sales_history.csv"
+ABC_RESULTS_FILE = "results/abc_results.csv"
+XYZ_RESULTS_FILE = "results/xyz_results.csv"
+ABCXYZ_RESULTS_FILE = "results/abcxyz_results.csv"
+
+# ─────────────────────────────────────────────────────
+# Display
+# ─────────────────────────────────────────────────────
 CURRENCY_SYMBOL = "Rp"
 STOCKOUT_THRESHOLD_DAYS = 30
 EXPORT_FILENAME = "abcxyz_results.csv"
 
 ABC_COLORS = {"A": "#2ecc71", "B": "#f39c12", "C": "#e74c3c"}
-
-MONTH_COLUMNS = [
-    "monthly_sales_jan", "monthly_sales_feb", "monthly_sales_mar",
-    "monthly_sales_apr", "monthly_sales_may", "monthly_sales_jun",
-    "monthly_sales_jul", "monthly_sales_aug", "monthly_sales_sep",
-    "monthly_sales_oct", "monthly_sales_nov", "monthly_sales_dec",
-]
 
 ABCXYZ_INTERPRETATIONS = {
     "AX": "⭐ High value, stable demand — prioritize stock",
@@ -46,25 +57,17 @@ ABCXYZ_INTERPRETATIONS = {
     "CZ": "❌ Low value, irregular demand — consider discontinuing",
 }
 
-REQUIRED_COLUMNS = [
-    "item_code", "item_name", "category",
-    "unit_cost", "unit_price", "units_in_stock",
-    "volume_m3", "order_frequency", "avg_delivery_days",
-    "stockout_days_per_year", "avg_days_in_stock",
-    *MONTH_COLUMNS,
-]
-
-TEXT_COLUMNS = ["item_code", "item_name", "category"]
-
-NUMERIC_COLUMNS = [c for c in REQUIRED_COLUMNS if c not in TEXT_COLUMNS]
-
 TABLE_COLUMNS = [
-    "item_code", "item_name", "category",
-    "abc_class", "xyz_class", "abcxyz_class",
-    "revenue", "margin_pct", "cv",
-    "avg_days_in_stock", "stockout_days_per_year",
+    "id",
+    "name",
+    "reference",
+    "abc_class",
+    "xyz_class",
+    "abcxyz_class",
+    "revenue",
+    "cv",
     "interpretation",
 ]
 
-PLOTLY_CONFIG = {"staticPlot": True}                           # disable all chart interactivity
-PLOTLY_USE_CONTAINER_WIDTH = True                              # stretch charts to full container width
+PLOTLY_CONFIG = {"staticPlot": True}
+PLOTLY_USE_CONTAINER_WIDTH = True
