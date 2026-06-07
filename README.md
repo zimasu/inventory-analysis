@@ -1,88 +1,41 @@
-# Item Priority — Inventory ABC/XYZ Analysis
+# Inventory ABC/XYZ Analysis
 
-A Streamlit app for classifying inventory items by value and demand stability, helping businesses focus their stock management effort where it matters most.
+A desktop-packaged Streamlit application that classifies inventory items by revenue contribution (ABC) and demand stability (XYZ). It identifies high-value stock, volatile demand tracks, and potential dead weight.
 
----
+## Core Capabilities
+* **ABC/XYZ Matrix Evaluation:** Automatically segments inventory profiles based on running cumulative revenues and coefficients of variation.
+* **Data Integration:** Dynamically interfaces with PrestaShop REST endpoints to synchronize product listings, stocks, and monthly distributions.
+* **Local Processing:** Formatted to ingest raw CSV data sheets natively and compute classification trends locally.
+* **Test Configurations:** Pytest implementation included to confirm calculation formulas against explicit data thresholds.
 
-## What it does
+## Project Architecture
+* `analysis/` — Mathematical classification math models (ABC/XYZ matrices)
+* `charts/` — Interactive dashboard plot elements
+* `ui/` — Streamlit view layers and sidebars
+* `utils/` — Internal data transformers and file handling wrappers
+* `tests/` — Unit test validation suite running on pytest
+* `app.py` — Cached API syncing and dashboard launcher
+* `config.py` — Central schemas, environment routes, and calculation cutoffs
 
-Uploads a CSV of inventory data and classifies each item across two dimensions:
+## Running Locally
 
-- **ABC** — how much revenue does this item contribute?
-- **XYZ** — how predictable is its demand?
+### Option 1: Standalone Windows App (No Python Required)
+1. Navigate to Releases on the right sidebar.
+2. Download and unzip InventoryAnalysis.zip.
+3. Launch InventoryAnalysis.exe.
 
-Combined, each item gets a label like `AX` (high value, stable) or `CZ` (low value, irregular), with a plain-language interpretation to guide stock decisions.
+### Option 2: Run via CLI (Python 3.11+)
+1. Install dependencies:
+   pip install -r requirements.txt
+2. Launch the Streamlit server:
+   streamlit run app.py
 
----
+## Input File Format
+If running via raw data ingestion manually without the PrestaShop API hook, supply an inventory_sample.csv matching this structure:
+* item_code / item_name / category (Text identifiers)
+* unit_cost / unit_price / units_in_stock (Numerical metrics)
+* monthly_sales_jan through monthly_sales_dec (Twelve consecutive months of sales integers)
 
-## Running the app
-
-```bash
-pip install -r requirements.txt
-streamlit run app.py
-```
-
----
-
-## Input data format
-
-Upload a CSV file with the following columns:
-
-| Column                                    | Type   | Description                    |
-| ----------------------------------------- | ------ | ------------------------------ |
-| `item_code`                               | text   | Unique item identifier         |
-| `item_name`                               | text   | Item name                      |
-| `category`                                | text   | Item category                  |
-| `unit_cost`                               | number | Cost per unit                  |
-| `unit_price`                              | number | Selling price per unit         |
-| `units_in_stock`                          | number | Current stock level            |
-| `volume_m3`                               | number | Volume per unit (cubic metres) |
-| `order_frequency`                         | number | How often the item is ordered  |
-| `avg_delivery_days`                       | number | Average supplier lead time     |
-| `stockout_days_per_year`                  | number | Days out of stock per year     |
-| `avg_days_in_stock`                       | number | Average days held in stock     |
-| `monthly_sales_jan` … `monthly_sales_dec` | number | Units sold each month          |
-
-A sample file is included: `inventory_sample.csv`
-
----
-
-## Output
-
-The app adds the following columns to the data:
-
-| Column                   | Description                                      |
-| ------------------------ | ------------------------------------------------ |
-| `abc_class`              | A, B, or C — revenue contribution tier           |
-| `xyz_class`              | X, Y, or Z — demand variability tier             |
-| `abcxyz_class`           | Combined label e.g. AX, BZ, CY                   |
-| `interpretation`         | Plain-language description of the classification |
-| `revenue_pct`            | This item's % of total revenue                   |
-| `cumulative_revenue_pct` | Running cumulative % (used for ABC cutoff)       |
-| `cv`                     | Coefficient of variation (used for XYZ cutoff)   |
-
-Results can be exported as `abcxyz_results.csv`.
-
----
-
-## Running the tests
-
-```bash
-pip install pytest
+## Testing
+To execute verification points:
 pytest tests/
-```
-
----
-
-## Project structure
-
-```
-analysis/       — classification logic (ABC, XYZ, combined)
-charts/         — chart components
-ui/             — Streamlit layout and components
-utils/          — data loading and formatting helpers
-config.py       — thresholds, column names, labels
-app.py          — entry point
-```
-
-See `LOGIC.md` for a plain-language explanation of the classification formulas and where to find the thresholds.
