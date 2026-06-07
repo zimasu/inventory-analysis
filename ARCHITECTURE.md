@@ -1,6 +1,6 @@
 # System Architecture
 
-![System Data Flow](./architecture.svg)
+![System Data Flow](./architecture.drawio.svg)
 
 This system uses a **Functional Core, Imperative Shell** paradigm, implemented as a deterministic data pipeline.
 
